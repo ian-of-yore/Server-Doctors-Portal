@@ -53,6 +53,21 @@ async function run() {
         // sending booking data to the database after client posts new booking
         app.post('/bookings', async (req, res) => {
             const doc = req.body;
+
+            // restricting user to book more than one appointment on a given day
+            const query = {
+                appointmentDate: doc.appointmentDate,
+                treatmentName: doc.treatmentName,
+                patientEmail: doc.patientEmail
+            }
+
+            const alreadyBooked = await bookingAppointments.find(query).toArray();
+            if (alreadyBooked.length) {
+                const message = `You already have an appointment on ${doc.appointmentDate}`;
+                return res.send({ acknowledged: false, message })
+            }
+            console.log(alreadyBooked);
+
             const result = await bookingAppointments.insertOne(doc);
             res.send(result);
         })
