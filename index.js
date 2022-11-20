@@ -25,6 +25,7 @@ async function run() {
         const database = client.db('DoctorsPortal');
         const appointmentOptions = database.collection('appointmentOptions');
         const bookingAppointments = database.collection('bookingAppointments');
+        const usersCollection = database.collection('users');
 
 
         // sending all the appointmentOptions
@@ -50,6 +51,20 @@ async function run() {
             res.send(options);
         })
 
+
+        // Getting all the booked slots data based on users email
+        app.get('/bookings', async (req, res) => {
+            const email = req.query.email;
+            const query = {
+                patientEmail: email
+            }
+            const cursor = bookingAppointments.find(query);
+            const userBookings = await cursor.toArray();
+            res.send(userBookings);
+        })
+
+
+
         // sending booking data to the database after client posts new booking
         app.post('/bookings', async (req, res) => {
             const doc = req.body;
@@ -69,6 +84,13 @@ async function run() {
             console.log(alreadyBooked);
 
             const result = await bookingAppointments.insertOne(doc);
+            res.send(result);
+        })
+
+        // Saving user data to the Database!! Hehehehe!!
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            const result = await usersCollection.insertOne(user);
             res.send(result);
         })
 
