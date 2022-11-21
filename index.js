@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 require('dotenv').config();
+var jwt = require('jsonwebtoken');
 
 const app = express()
 const port = process.env.PORT || 5000;
@@ -18,6 +19,26 @@ app.get('/', async (req, res) => {
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.mmmt3qa.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
+
+function verifyJWT(req, res, next) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+        return res.status(401).send('Unauthorized access');
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
+        if (err) {
+            return res.status(403).send({ message: 'Forbidden Access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+
+}
+
 
 async function run() {
     try {
@@ -53,8 +74,14 @@ async function run() {
 
 
         // Getting all the booked slots data based on users email
-        app.get('/bookings', async (req, res) => {
+        app.get('/bookings', verifyJWT, async (req, res) => {
             const email = req.query.email;
+            const decodedEmail = req.decoded.email;
+
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden accesss' })
+            }
+
             const query = {
                 patientEmail: email
             }
@@ -81,10 +108,24 @@ async function run() {
                 const message = `You already have an appointment on ${doc.appointmentDate}`;
                 return res.send({ acknowledged: false, message })
             }
-            console.log(alreadyBooked);
+            // console.log(alreadyBooked);
 
             const result = await bookingAppointments.insertOne(doc);
             res.send(result);
+        })
+
+        // Generating JWT Token for user
+        app.get('/jwt', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+
+            if (user) {
+                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '7d' });
+                return res.send({ accessToken: token });
+            }
+            // console.log(user);
+            res.status(403).send({ accessToken: '' })
         })
 
         // Saving user data to the Database!! Hehehehe!!
