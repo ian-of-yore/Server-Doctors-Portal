@@ -143,6 +143,14 @@ async function run() {
             res.send(result);
         })
 
+        // sending the confirmatin if an user is admin or not
+        app.get('/users/admin/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            res.send({ isAdmin: user?.role === 'Admin' });
+        })
+
         // chaning the roles (admin) of the users from client side
         app.put('/users/admin/:id', verifyJWT, async (req, res) => {
             const decodedEmail = req.decoded.email;
