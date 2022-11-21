@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 var jwt = require('jsonwebtoken');
 
@@ -128,10 +128,40 @@ async function run() {
             res.status(403).send({ accessToken: '' })
         })
 
+        // sending all the users data to the client
+        app.get('/users', async (req, res) => {
+            const query = {};
+            const cursor = usersCollection.find(query);
+            const users = await cursor.toArray();
+            res.send(users);
+        })
+
         // Saving user data to the Database!! Hehehehe!!
         app.post('/users', async (req, res) => {
             const user = req.body;
             const result = await usersCollection.insertOne(user);
+            res.send(result);
+        })
+
+        // chaning the roles (admin) of the users from client side
+        app.put('/users/admin/:id', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne(query);
+
+            if (user?.role !== 'Admin') {
+                return res.status(403).send({ message: 'Forbidden Access!' })
+            }
+
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    role: 'Admin'
+                }
+            }
+            const result = await usersCollection.updateOne(filter, updateDoc, options);
             res.send(result);
         })
 
