@@ -14,8 +14,6 @@ app.get('/', async (req, res) => {
     res.send('Server is running');
 })
 
-// DB_USER: doctorsPortalDB
-// DB_PASSWORD: uiG3m42Inmpx3UFw
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.mmmt3qa.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
@@ -47,6 +45,19 @@ async function run() {
         const appointmentOptions = database.collection('appointmentOptions');
         const bookingAppointments = database.collection('bookingAppointments');
         const usersCollection = database.collection('users');
+        const doctorsCollection = database.collection('doctors');
+
+        // A middleware to verify if a looged in user is admin
+        const verifyAdmin = async (req, res, next) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne(query);
+
+            if (user?.role !== 'Admin') {
+                return res.status(403).send({ message: 'Forbidden Access!' })
+            }
+            next();
+        }
 
 
         // sending all the appointmentOptions
@@ -70,6 +81,14 @@ async function run() {
             })
 
             res.send(options);
+        })
+
+
+        // Sending all the treatment options name to the client side
+        app.get('/appointmentSpeciality', async (req, res) => {
+            const query = {};
+            const result = await appointmentOptions.find(query).project({ name: 1 }).toArray();
+            res.send(result);
         })
 
 
@@ -151,16 +170,8 @@ async function run() {
             res.send({ isAdmin: user?.role === 'Admin' });
         })
 
-        // chaning the roles (admin) of the users from client side
-        app.put('/users/admin/:id', verifyJWT, async (req, res) => {
-            const decodedEmail = req.decoded.email;
-            const query = { email: decodedEmail };
-            const user = await usersCollection.findOne(query);
-
-            if (user?.role !== 'Admin') {
-                return res.status(403).send({ message: 'Forbidden Access!' })
-            }
-
+        // changing the roles (admin) of the users from client side
+        app.put('/users/admin/:id', verifyJWT, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
             const options = { upsert: true };
@@ -170,6 +181,29 @@ async function run() {
                 }
             }
             const result = await usersCollection.updateOne(filter, updateDoc, options);
+            res.send(result);
+        })
+
+        // create new doctor and save it to the database
+        app.post('/doctors', verifyJWT, verifyAdmin, async (req, res) => {
+            const doctor = req.body;
+            const result = await doctorsCollection.insertOne(doctor);
+            res.send(result);
+        })
+
+        // sending all the doctors data from the database to the client side
+        app.get('/doctors', verifyJWT, verifyAdmin, async (req, res) => {
+            const query = {};
+            const cursor = doctorsCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+
+        // delete a doctor
+        app.delete('/doctors/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const result = await doctorsCollection.deleteOne(query);
             res.send(result);
         })
 
